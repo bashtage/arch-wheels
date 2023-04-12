@@ -20,7 +20,7 @@ jobs:
         os: [ubuntu-20.04, windows-2019, macOS-10.15]
     env:
       BUILD_COMMIT: "v5.4.0" # main or a specific version, e.g., v5.1.0
-      PYPI_UPLOAD: false  # true or false
+      PYPI_UPLOAD: true  # true or false
       TESTPYPI_UPLOAD: false
       CIBW_BUILD: ${{ matrix.python }}-*
       CIBW_ARCHS_LINUX: "x86_64 aarch64"
