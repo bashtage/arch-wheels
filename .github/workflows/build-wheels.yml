@@ -26,7 +26,7 @@ jobs:
       CIBW_ARCHS_LINUX: "x86_64 aarch64"
       CIBW_ARCHS_MACOS: native
       # No support for pypy, musl, Win32 for 3.10+
-      CIBW_SKIP: "pp* *musllinux_aarch64* *-win32"
+      CIBW_SKIP: "*musllinux_aarch64* *-win32"
       CIBW_TEST_REQUIRES: "pytest>=9,<10 pytest-xdist"
       CIBW_TEST_COMMAND: python -c "import arch; arch.test(['-n','auto','--skip-slow'])"
       # Avoid testing on emulated architectures
