@@ -55,7 +55,7 @@ jobs:
             os: macos-15-intel
     env:
       BUILD_COMMIT: "v9.0.0" # # main or a specific version, e.g., "v7.2.0"
-      PYPI_UPLOAD: false  # true or false
+      PYPI_UPLOAD: true  # true or false
       TESTPYPI_UPLOAD: false
       # A single build identifier, such as cp313-manylinux_x86_64, so that the job
       # builds one wheel
