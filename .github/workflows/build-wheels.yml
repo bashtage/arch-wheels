@@ -8,7 +8,8 @@ on:
 
 jobs:
   build_wheels:
-    name: ${{ matrix.os }}, Python ${{ matrix.python }}
+    # Each job builds, repairs and tests exactly one wheel
+    name: ${{ matrix.python }}-${{ matrix.wheel }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -16,32 +17,52 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, windows-11-arm, macos-latest, macos-15-intel]
         python: [cp310, cp311, cp312, cp313, cp314, cp315]
+        # The platform tag of the wheel, as in cibuildwheel's build identifiers
+        wheel:
+          - manylinux_x86_64
+          - musllinux_x86_64
+          - manylinux_aarch64
+          - win_amd64
+          - win_arm64
+          - macosx_arm64
+          - macosx_x86_64
         exclude:
           # statsmodels has win_arm64 wheels from Python 3.13, so the wheels for older
           # Pythons could not be tested
-          - os: windows-11-arm
+          - wheel: win_arm64
             python: cp310
-          - os: windows-11-arm
+          - wheel: win_arm64
             python: cp311
-          - os: windows-11-arm
+          - wheel: win_arm64
             python: cp312
+        # The runner of each wheel. Every wheel is built on a runner of its own
+        # architecture, so none is emulated and every wheel is tested.
+        include:
+          - wheel: manylinux_x86_64
+            os: ubuntu-latest
+          - wheel: musllinux_x86_64
+            os: ubuntu-latest
+          - wheel: manylinux_aarch64
+            os: ubuntu-24.04-arm
+          - wheel: win_amd64
+            os: windows-latest
+          - wheel: win_arm64
+            os: windows-11-arm
+          - wheel: macosx_arm64
+            os: macos-latest
+          - wheel: macosx_x86_64
+            os: macos-15-intel
     env:
       BUILD_COMMIT: "main" # # main or a specific version, e.g., "v7.2.0"
       PYPI_UPLOAD: false  # true or false
       TESTPYPI_UPLOAD: false
-      CIBW_BUILD: ${{ matrix.python }}-*
-      CIBW_ARCHS_LINUX: "x86_64 aarch64"
-      CIBW_ARCHS_MACOS: native
-      # AMD64 on windows-latest and ARM64 on windows-11-arm
-      CIBW_ARCHS_WINDOWS: native
-      # No support for pypy, musl, Win32 for 3.10+
-      CIBW_SKIP: "*musllinux_aarch64* *-win32"
+      # A single build identifier, such as cp313-manylinux_x86_64, so that the job
+      # builds one wheel
+      CIBW_BUILD: ${{ matrix.python }}-${{ matrix.wheel }}
+      CIBW_ARCHS: native
       CIBW_TEST_REQUIRES: "pytest>=9,<10 pytest-xdist"
       CIBW_TEST_COMMAND: python -c "import arch; arch.test(['-n','auto','--skip-slow'])"
-      # Avoid testing on emulated architectures
-      CIBW_TEST_SKIP: "*-*linux_{aarch64,ppc64le,s390x} *-win32"
       CIBW_REPAIR_WHEEL_COMMAND_LINUX: 'auditwheel repair --strip -w {dest_dir} {wheel}'
 
     steps:
@@ -73,12 +94,6 @@ jobs:
             fi
           done
 
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v4
-        with:
-          platforms: all
-
       - name: Build wheels
         uses: pypa/cibuildwheel@v4.3
         with:
@@ -87,12 +102,22 @@ jobs:
         env:
           CIBW_BEFORE_BUILD: 'git submodule foreach git checkout  ${{ env.BUILD_COMMIT }}'
 
+      - name: Check that one wheel was built
+        run: |
+          shopt -s nullglob
+          wheels=(wheelhouse/*.whl)
+          if [[ ${#wheels[@]} -ne 1 ]]; then
+            echo "Expected 1 wheel for ${CIBW_BUILD}, found ${#wheels[@]}: ${wheels[*]}"
+            exit 1
+          fi
+          echo "Built ${wheels[0]}"
+
       - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
+      # Only after the wheel was built, tested and checked
       - name: Upload wheels
-        if: always()
         run: source twine-upload.sh
         env:
           TESTPYPI_TOKEN: ${{ secrets.TESTPYPI_TOKEN }}
